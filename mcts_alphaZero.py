@@ -212,23 +212,23 @@ class MCTSPlayer(object):
                     if current_step >= 0:
                         if current_step < 5:
                             if move_probs[np.argmax(move_probs)] >= 0.9:
-                                prob_temp = 0.88
+                                prob_temp = 0.9
                                 probs = prob_temp * probs + (1 - prob_temp) * np.random.dirichlet(0.3 * np.ones(len(probs)))
                                 move_probs_print[list(acts)] = probs
                             else:
-                                prob_temp = 0.75
+                                prob_temp = 0.9
                                 probs = prob_temp * probs + (1 - prob_temp) * np.random.dirichlet(0.3 * np.ones(len(probs)))
                                 move_probs_print[list(acts)] = probs
 
                     move = np.random.choice(acts, p=probs)
                 else:
-                    prob_temp = 0.88
+                    prob_temp = 1
                     # 让棋局的前6步的随机性更高，可以探索更多不一样的棋局
                     if current_step >= 0:
                         if current_step < 5:
-                            prob_temp = 0.75
+                            prob_temp = 1
                         else:
-                            prob_temp = 0.88
+                            prob_temp = 1
 
                     # 在每一步的概率里面加上随机数
                     probs = prob_temp * probs + (1 - prob_temp) * np.random.dirichlet(0.3 * np.ones(len(probs)))
@@ -236,7 +236,8 @@ class MCTSPlayer(object):
                     move = np.random.choice(acts, p=probs)
 
                 if is_first_step:
-                    move = int(((board.width * board.height) - 1) / 2)
+                    # move = int(((board.width * board.height) - 1) / 2)
+                    pass
 
                 # 打印出每个位置的概率
                 if self.verbose:
