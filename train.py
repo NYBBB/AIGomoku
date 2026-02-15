@@ -31,7 +31,7 @@ def run_self_play(model_file, temp, n_playout, game_params):
         policy_value_net = PolicyValueNet(width, height, model_file=model_file)
         
         mcts = MCTS(policy_value_net.policy_value_fn, c_puct=5, n_playout=n_playout)
-        player = MCTSPlayer(mcts=mcts, is_selfplay=True)
+        player = MCTSPlayer(mcts=mcts, is_selfplay=True, verbose=False)
         
         # Run the game
         winner, play_data = game.start_self_play(player, temp=temp, is_shown=False)

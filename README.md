@@ -21,7 +21,7 @@ An advanced Gomoku AI engine implementing the AlphaZero methodology. This projec
 
 This project represents a long-term exploration of Reinforcement Learning:
 
-*   **v1.0 (Legacy)**: Initial implementation using TensorFlow 1.x and basic CNNs. (See `legacy/` branch).
+*   **v1.0 (Legacy)**: Initial implementation using TensorFlow 1.x and basic CNNs.
 *   **v2.0 (Current Focus)**:
     *   **PyTorch Backend**: Migrating core network definitions to PyTorch for better flexibility and modern tooling.
     *   **ResNet Architecture**: Upgrading from simple CNNs to **Residual Networks (ResNet)** to solve the vanishing gradient problem in deeper networks and improve feature extraction.

@@ -167,9 +167,10 @@ class MCTS(object):
 class MCTSPlayer(object):
     """AI player based on MCTS"""
 
-    def __init__(self, is_selfplay=False, mcts=None):
+    def __init__(self, is_selfplay=False, mcts=None, verbose=True):
         self.mcts = mcts
         self._is_selfplay = is_selfplay
+        self.verbose = verbose
         self.set_player_name()
 
     def set_player_ind(self, p):
@@ -233,9 +234,10 @@ class MCTSPlayer(object):
                     move = int(((board.width * board.height) - 1) / 2)
 
                 # 打印出每个位置的概率
-                tabulator_probs(move_probs_print, board, move, np.argmax(move_probs_print))
-                print("AI")
-                print(move, move_probs_print[move], np.argmax(move_probs_print), move_probs_print[np.argmax(move_probs_print)])
+                if self.verbose:
+                    tabulator_probs(move_probs_print, board, move, np.argmax(move_probs_print))
+                    print("AI")
+                    print(move, move_probs_print[move], np.argmax(move_probs_print), move_probs_print[np.argmax(move_probs_print)])
                 # update the root node and reuse the search tree
                 self.mcts.update_with_move(move)
             else:
@@ -250,7 +252,8 @@ class MCTSPlayer(object):
                     move = int(((board.width * board.height) - 1) / 2)
 
                 # 打印出每个位置的概率
-                tabulator_probs(move_probs, board, move, np.argmax(move_probs))
+                if self.verbose:
+                    tabulator_probs(move_probs, board, move, np.argmax(move_probs))
                 # reset the root node
                 self.mcts.update_with_move(-1)
                 location = board.move_to_location(move)
