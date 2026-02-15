@@ -41,7 +41,7 @@ This project represents a long-term exploration of Reinforcement Learning:
 Ensure you have Python 3.8+ installed.
 
 ```bash
-pip install torch numpy tqdm
+pip install torch numpy tqdm tensorboard
 ```
 
 ### 2. Play Against AI

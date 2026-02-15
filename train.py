@@ -12,6 +12,7 @@ from tools import *
 from robot import Robot
 import multiprocessing
 import os
+from torch.utils.tensorboard import SummaryWriter
 
 # Worker function for multiprocessing
 def run_self_play(model_file, temp, n_playout, game_params):
@@ -28,7 +29,7 @@ def run_self_play(model_file, temp, n_playout, game_params):
         # Load the policy network
         # Note: We create a new instance for each process to ensure thread safety
         # and to load the latest weights from disk.
-        policy_value_net = PolicyValueNet(width, height, model_file=model_file)
+        policy_value_net = PolicyValueNet(width, height, model_file=model_file, use_gpu=False)
         
         mcts = MCTS(policy_value_net.policy_value_fn, c_puct=5, n_playout=n_playout)
         player = MCTSPlayer(mcts=mcts, is_selfplay=True, verbose=False)
@@ -39,96 +40,6 @@ def run_self_play(model_file, temp, n_playout, game_params):
     except Exception as e:
         print(f"Error in worker process: {e}")
         return []
-
-class human_player_train(object):
-    def __init__(self, policyValueNet, mcts):
-        self.player = None
-        self.temp = 1.0
-        self.n_playout = 1000
-        self.c_puct = 5
-        self.mcts = mcts
-
-    def set_player_ind(self, p):
-        self.player = p
-
-    def get_action(self, board,  *args, **kwargs):
-        temp = kwargs.get("temp", 0.07)
-        n_playout = kwargs.get("n_playout", -1)
-
-        move_probs = np.zeros(board.width * board.height)
-
-        while True:
-            location = input("Your move: ")
-            if isinstance(location, str):
-                try:
-                    location = [int(n, 10) for n in location.split(",")]
-                except:
-                    continue
-
-            if location[0] > board.width or location[1] > board.height:
-                 continue
-
-            move = board.location_to_move(location)
-            if move in board.availables:
-                break
-
-        action, prob = self.mcts.get_move_probs(board, temp=temp, n_playout=n_playout)
-        move_probs[list(action)] = prob
-        tabulator_probs(move_probs, board, move, np.argmax(move_probs))
-        print("human")
-        print(move, move_probs[move], np.argmax(move_probs))
-
-        self.mcts.update_with_move(move)
-
-        return move, move_probs
-
-    def __str__(self):
-        return "Human {}".format(self.player)
-
-class robot_in_train:
-    def __init__(self, mcts=None):
-        self.mcts = mcts
-        self.robot = Robot(11, 11)
-        self.set_player_name()
-
-    def set_player_ind(self, p):
-        self.player = p
-
-    def set_player_name(self, name="Robot"):
-        self.name = name
-
-    def get_action(self, board,  *args, **kwargs):
-        temp = kwargs.get("temp", 0.7)
-        n_playout = kwargs.get("n_playout", -1)
-        is_first_step = kwargs.get("is_first_step", False)
-        is_return_prob = kwargs.get("is_return_prob", True)
-
-        if not is_return_prob:
-            move_x, move_y = self.robot.MaxValue_po(self.player, board.board, is_first_step)
-            move = board.location_to_move((move_x, move_y))
-            if is_first_step:
-                move = 60
-            return move
-
-        move_probs = np.zeros(board.width * board.height)
-        action, prob = self.mcts.get_move_probs(board, temp=temp, n_playout=n_playout)
-        move_probs[list(action)] = prob
-
-        move_x, move_y = self.robot.MaxValue_po(self.player, board.board, is_first_step)
-        if move_x == -1 and move_y == -1:
-            move = np.random.choice(action, p=prob)
-        else:
-            move = board.location_to_move((move_x, move_y))
-        if is_first_step:
-            move = 60
-
-        tabulator_probs(move_probs, board, move, np.argmax(move_probs))
-        print("robot")
-
-        self.mcts.update_with_move(move)
-
-        return move, move_probs
-
 
 class TrainPipeline:
     def __init__(self, init_model=None):
@@ -144,17 +55,15 @@ class TrainPipeline:
         self.temp = 1.0  # 温度参数
         self.n_playout = 400  # MCTS模拟次数
         self.c_puct = 5
-        self.play = 1  # 1为ai自我对战训练
         self.buffer_size = 10000
         self.batch_size_mini = 512
         self.data_buffer = deque(maxlen=self.buffer_size)
         self.play_batch_size = 1
         self.epochs = 5  # 每次更新的训练次数
         self.kl_targ = 0.02
-        self.check_freq = 500
-        self.game_batch_num = 1500
+        self.check_freq = 50
+        self.game_batch_num = 3000
         self.best_win_ratio = 0.0
-        self.pure_mcts_playout_num = 1000
         
         self.model_dir = 'model'
         if not os.path.exists(self.model_dir):
@@ -181,8 +90,11 @@ class TrainPipeline:
         self.policy_value_net.save_model(self.model_path)
         
         # Parallel Processing Config
-        self.num_workers = max(1, multiprocessing.cpu_count() - 1) # Leave one core for the trainer
+        self.num_workers = max(1, multiprocessing.cpu_count() - 5)  # Leave one core for the trainer
         print(f"Parallel training enabled: Using {self.num_workers} worker processes.")
+
+        # TensorBoard Writer
+        self.writer = SummaryWriter('runs/gomoku_experiment')
 
     def get_equi_data(self, play_data):
         """
@@ -211,7 +123,6 @@ class TrainPipeline:
         Collect self-play data using multiprocessing
         """
         # Prepare arguments for workers
-        # Each worker needs: model_path, temp, n_playout, game_params
         worker_args = [(self.model_path, self.temp, self.n_playout, self.game_params) for _ in range(n_games)]
         
         # Run workers in parallel
@@ -219,14 +130,19 @@ class TrainPipeline:
             results = pool.starmap(run_self_play, worker_args)
             
         # Process results
+        total_steps = 0
         for play_data in results:
             if play_data:
                 self.episode_len = len(play_data)
+                total_steps += self.episode_len
                 # Augment the data
                 play_data = self.get_equi_data(play_data)
                 self.data_buffer.extend(play_data)
+        
+        avg_steps = total_steps / n_games if n_games > 0 else 0
+        return avg_steps
 
-    def policy_update(self):
+    def policy_update(self, step_idx):
         """Update the policy-value net"""
         mini_batch = random.sample(self.data_buffer, self.batch_size_mini)
         state_batch = [data[0] for data in mini_batch]
@@ -235,6 +151,10 @@ class TrainPipeline:
 
         old_probs, old_v = self.policy_value_net.policy_value(state_batch)
         
+        loss = 0
+        entropy = 0
+        kl = 0
+
         for i in range(self.epochs):
             loss, entropy = self.policy_value_net.train_step(
                     state_batch, 
@@ -261,6 +181,13 @@ class TrainPipeline:
                         self.lr_multiplier,
                         loss,
                         entropy))
+        
+        # Log to TensorBoard
+        self.writer.add_scalar('Training/Loss', loss, step_idx)
+        self.writer.add_scalar('Training/Entropy', entropy, step_idx)
+        self.writer.add_scalar('Training/KL_Divergence', kl, step_idx)
+        self.writer.add_scalar('Training/Learning_Rate_Multiplier', self.lr_multiplier, step_idx)
+        
         return loss, entropy
 
     def run(self):
@@ -268,19 +195,27 @@ class TrainPipeline:
         try:
             for i in range(self.game_batch_num):
                 # Collect self-play data in parallel
-                self.collect_selfplay_data(self.num_workers) # Run as many games as workers per batch
-                print("batch i:{}, episode_len:{}".format(i + 1, self.episode_len))
+                avg_steps = self.collect_selfplay_data(self.num_workers) 
+                print("batch i:{}, episode_len:{:.2f}".format(i + 1, avg_steps))
+                
+                # Log game length
+                self.writer.add_scalar('Game/Average_Length', avg_steps, i + 1)
+                self.writer.add_scalar('Game/Buffer_Size', len(self.data_buffer), i + 1)
 
                 if len(self.data_buffer) > self.batch_size_mini:
-                    loss, entropy = self.policy_update()
+                    loss, entropy = self.policy_update(i + 1)
                     # Save the model so workers can pick up the new weights
                     self.policy_value_net.save_model(self.model_path)
                     
-                if (i + 1) % 50 == 0:
-                    print("Check point saved.")
+                if (i + 1) % self.check_freq == 0:
+                    print(f"Checkpoint saved at iteration {i+1}")
+                    # Save a backup occasionally
+                    self.policy_value_net.save_model(os.path.join(self.model_dir, f'policy_{i+1}.model'))
                     
         except KeyboardInterrupt:
             print('\n\rquit')
+        finally:
+            self.writer.close()
 
 if __name__ == '__main__':
     # On Windows, multiprocessing requires this protection

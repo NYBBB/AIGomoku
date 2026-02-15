@@ -129,14 +129,19 @@ class MCTS(object):
         # Update value and visit count of nodes in this traversal.
         node.update_recursive(-leaf_value)
 
-    def get_move_probs(self, state, temp=0.07, n_playout=-1):
+    def get_move_probs(self, state, temp=0.07, n_playout=-1, verbose=True):
         """Run all playouts sequentially and return the available actions and
         their corresponding probabilities.
         state: the current game state
         temp: temperature parameter in (0, 1] controls the level of exploration
         """
         num_of_playout = n_playout if n_playout > 0 else self._n_playout
-        for n in tqdm(range(num_of_playout)):
+        if verbose:
+             iterator = tqdm(range(num_of_playout))
+        else:
+             iterator = range(num_of_playout)
+
+        for n in iterator:
             state_copy = copy.deepcopy(state)
             self._playout(state_copy)
 
@@ -197,7 +202,7 @@ class MCTSPlayer(object):
         move_probs = np.zeros(board.width * board.height)
         move_probs_print = np.zeros(board.width * board.height)
         if len(sensible_moves) > 0:
-            acts, probs = self.mcts.get_move_probs(board, temp, n_playout)
+            acts, probs = self.mcts.get_move_probs(board, temp, n_playout, verbose=self.verbose)
             move_probs[list(acts)] = probs
             move_probs_print = move_probs
 

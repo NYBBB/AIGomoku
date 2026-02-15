@@ -4,7 +4,7 @@ This file provides context and guidelines for AI agents working on the AIGomoku 
 
 ## 1. Build, Run, and Test Commands
 
-This project is a Python-based Gomoku AI using TensorFlow (v1 compatibility mode) and MCTS. There is no standard build system (like `setup.py` or `poetry`), and dependencies are managed manually (ensure `tensorflow`, `numpy`, `PyYAML`, `tqdm`, `tkinter` are installed).
+This project is a Python-based Gomoku AI using TensorFlow (v1 compatibility mode) and MCTS. There is no standard build system (like `setup.py` or `poetry`), and dependencies are managed manually (ensure `tensorflow`, `numpy`, `PyYAML`, `tqdm`, `tkinter`, `tensorboard` are installed).
 
 ### Running the Game (GUI)
 To play against the AI, run the `human_play.py` script. This launches a Tkinter-based GUI.
